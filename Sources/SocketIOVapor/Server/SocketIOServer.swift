@@ -168,7 +168,7 @@ extension SocketIOServer {
     }
 
     private func getSockets(for client: EngineIO.Client) -> Set<Socket> {
-        sockets.filter { $0.client.id == client.id }
+        allSockets.filter { $0.client.id == client.id }
     }
 
     private func connect(socket: Socket, to namespace: String) async throws {
