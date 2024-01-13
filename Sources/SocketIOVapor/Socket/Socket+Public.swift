@@ -47,6 +47,12 @@ extension Socket {
         disconnectionHandler = handler
     }
 
+    public func onDisconnection(use handler: @escaping (Socket, DisconnectReason) -> Void) {
+        disconnectionHandler = { reason in
+            handler(self, reason)
+        }
+    }
+
     public func onError(use handler: @escaping (Error) -> Void) {
         errorHandler = handler
     }

@@ -53,12 +53,13 @@ extension SocketIOServer {
     @Sendable private func connectionHandler(client: EngineIO.Client) {
     }
 
-    @Sendable private func disonnectionHandler(client: EngineIO.Client) {
+    @Sendable private func disonnectionHandler(client: EngineIO.Client, reason: EngineIO.DisconnectReason) {
         getSockets(for: client).forEach { socket in
             guard let namespaceMap = namespaceMaps.first(where: { $0.sockets.contains(where: { $0.client.id == client.id }) }) else {
                 return
             }
             namespaceMap.removeSocket(socket)
+            socket.disconnectionHandler?(reason.disconnectReason)
         }
     }
 
@@ -120,9 +121,8 @@ extension SocketIOServer {
                 payload: SocketIOHandshake(id: socket.client.id).dictionary
             )
 
-            await socket.client.sendPacket(handshakePacket)
-
             try await connect(socket: socket, to: packet.namespace)
+            await socket.client.sendPacket(handshakePacket)
         } catch {
             await client.sendPacket(error.toSocketIOPacket(namespace: packet.namespace))
             await client.disconnect()
@@ -178,6 +178,7 @@ extension SocketIOServer {
 
     private func disconnect(socket: Socket, from namespace: String) {
         getNamespace(for: namespace)?.removeSocket(socket)
+        socket.disconnectionHandler?(.forcefully)
     }
 
     func getNamespace(for name: String) -> NamespaceMap? {

@@ -15,6 +15,7 @@ public final class Socket {
     public let id = UUID().uuidString
     public let client: Client
     public lazy var broadcast = { Broadcast(socket: self) }()
+    public var userInfo: [String: Any] = [:]
 
     // MARK: Internal properties
 

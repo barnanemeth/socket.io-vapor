@@ -12,7 +12,9 @@ final class NamespaceMap {
     // MARK: Internal properties
 
     let name: String
-    var sockets = Set<Socket>() { willSet { socketsWillSet(newValue: newValue) } }
+    var sockets = Set<Socket>() {
+        didSet { calculateSetDifference(oldValue: oldValue) }
+    }
     var socketObservation: ((Socket) -> Void)?
     var middlewares = [NamespaceMiddleware]()
     var roomMap = [String: Set<String>]()
@@ -98,8 +100,8 @@ extension NamespaceMap: Hashable, Equatable {
 // MARK: - Helpers
 
 extension NamespaceMap {
-    private func socketsWillSet(newValue: Set<Socket>) {
-        let newSockets = newValue.subtracting(sockets)
+    private func calculateSetDifference(oldValue: Set<Socket>) {
+        let newSockets = sockets.subtracting(oldValue)
         newSockets.forEach { socketObservation?($0) }
     }
 }

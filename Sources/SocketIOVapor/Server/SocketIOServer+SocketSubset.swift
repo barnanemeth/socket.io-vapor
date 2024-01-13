@@ -24,6 +24,12 @@ extension SocketIOServer: InternalNamespace {
         defaultNamespaceMap.socketObservation = handler
     }
 
+    public func onConnection(use handler: @escaping (Namespace, Socket) -> Void) {
+        defaultNamespaceMap.socketObservation = { socket in
+            handler(self, socket)
+        }
+    }
+
     public func use(_ middleware: NamespaceMiddleware) {
         defaultNamespaceMap.middlewares.append(middleware)
     }
