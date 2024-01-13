@@ -48,7 +48,8 @@ extension Socket {
     }
 
     public func onDisconnection(use handler: @escaping (Socket, DisconnectReason) -> Void) {
-        disconnectionHandler = { reason in
+        disconnectionHandler = { [weak self] reason in
+            guard let self else { return }
             handler(self, reason)
         }
     }
