@@ -31,6 +31,7 @@ extension SocketSubset {
 
 public protocol Namespace: SocketSubset {
     func onConnection(use handler: @escaping (Socket) -> Void)
+    func onConnection(use handler: @escaping (Namespace, Socket) -> Void)
     func use(_ middleware: NamespaceMiddleware)
 }
 

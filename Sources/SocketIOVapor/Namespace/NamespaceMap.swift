@@ -29,9 +29,16 @@ final class NamespaceMap {
 
 // MARK: - InternalNamespace
 
-extension NamespaceMap: InternalNamespace {    
+extension NamespaceMap: InternalNamespace {
     func onConnection(use handler: @escaping (Socket) -> Void) {
         socketObservation = handler
+    }
+
+    func onConnection(use handler: @escaping (Namespace, Socket) -> Void) {
+        socketObservation = { [weak self] socket in
+            guard let self else { return }
+            handler(self, socket)
+        }
     }
 
     func getSockets() -> Set<Socket> { sockets }
