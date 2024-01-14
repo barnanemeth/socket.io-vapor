@@ -11,6 +11,17 @@ import EngineIO
 
 public class SocketIOServer {
 
+    // MARK: Inner type
+
+    public struct Configuration {
+        public static let `default` = Configuration()
+
+        public var path: PathComponent = "socket.io"
+        public var pingInterval = 3000
+        public var pingTimeout = 2000
+        public var allowRequest: ((Request) throws -> Void)?
+    }
+
     // MARK: Constants
 
     enum Constant {
@@ -36,14 +47,15 @@ public class SocketIOServer {
 
     // MARK: Init
 
-    public init(engine: Engine = DefaultEngine(path: "socket.io")) {
-        self.engine = engine
+    public init(engine: Engine? = nil, configuration: Configuration = .default) {
+        var engineConfig = DefaultEngine.Configuration.default
+        engineConfig.pingInterval = configuration.pingInterval
+        engineConfig.pingTimeout = configuration.pingTimeout
+        engineConfig.allowRequest = configuration.allowRequest
 
-        Task {
-            await self.engine.onConnection(use: connectionHandler)
-            await self.engine.onDisconnection(use: disonnectionHandler)
-            await self.engine.onPackets(use: packetsHandler)
-        }
+        self.engine = engine ?? DefaultEngine(path: configuration.path, configuration: engineConfig)
+
+        setHandlers()
     }
 }
 
@@ -98,6 +110,14 @@ extension SocketIOServer {
 // MARK: - Helpers
 
 extension SocketIOServer {
+    private func setHandlers() {
+        Task {
+            await self.engine.onConnection(use: connectionHandler)
+            await self.engine.onDisconnection(use: disonnectionHandler)
+            await self.engine.onPackets(use: packetsHandler)
+        }
+    }
+
     func processPacket(for client: EngineIO.Client, packet: SocketIOPacket) async {
         if packet.socketIOType == .connect {
             await handleConnect(for: client, packet: packet)
