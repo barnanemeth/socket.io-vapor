@@ -23,7 +23,7 @@ public final class Socket {
     var connectionHandler: (() -> Void)?
     var disconnectionHandler: ((DisconnectReason) -> Void)?
     var errorHandler: ((Error) -> Void)?
-    var messageHandlers = [String: ([Any]) -> Void]()
+    var eventHandlers = [String: ([Any]) -> Void]()
     var pendingPacketState: PendingPacketState?
     weak var server: SocketIOServer?
 

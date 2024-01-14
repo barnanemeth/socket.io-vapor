@@ -11,6 +11,45 @@ import EngineIO
 
 public class SocketIOServer {
 
+    // MARK: Inner types
+
+    public struct Configuration {
+        public static let `default` = Configuration()
+
+        public var path: PathComponent
+        public var pingInterval: Int
+        public var pingTimeout: Int
+        public var maxPayload: Int
+        public var addTrailingSlash: Bool
+        public var allowEIO3: Bool
+        public var allowUpgrades = true
+        public var allowRequest: ((Request) throws -> Void)?
+        public var cookie: CookieOptions?
+        public var logLevel: Logger.Level
+
+        public init(path: PathComponent = "socket.io",
+                    pingInterval: Int = 3000,
+                    pingTimeout: Int = 2000,
+                    maxPayload: Int = 1000000,
+                    addTrailingSlash: Bool = false,
+                    allowEIO3: Bool = false,
+                    allowUpgrades: Bool = true,
+                    allowRequest: ((Request) throws -> Void)? = nil,
+                    cookie: CookieOptions? = nil,
+                    logLevel: Logger.Level = .error) {
+            self.path = path
+            self.pingInterval = pingInterval
+            self.pingTimeout = pingTimeout
+            self.maxPayload = maxPayload
+            self.addTrailingSlash = addTrailingSlash
+            self.allowEIO3 = allowEIO3
+            self.allowUpgrades = allowUpgrades
+            self.allowRequest = allowRequest
+            self.cookie = cookie
+            self.logLevel = logLevel
+        }
+    }
+
     // MARK: Constants
 
     enum Constant {
@@ -36,14 +75,21 @@ public class SocketIOServer {
 
     // MARK: Init
 
-    public init(engine: Engine = DefaultEngine(path: "socket.io")) {
-        self.engine = engine
+    public init(engine: Engine? = nil, configuration: Configuration = .default) {
+        let config = DefaultEngine.Configuration(
+            pingInterval: configuration.pingInterval,
+            pingTimeout: configuration.pingTimeout,
+            maxPayload: configuration.maxPayload,
+            addTrailingSlash: configuration.addTrailingSlash,
+            allowEIO3: configuration.allowEIO3,
+            allowUpgrades: configuration.allowUpgrades,
+            allowRequest: configuration.allowRequest,
+            cookie: configuration.cookie,
+            logLevel: configuration.logLevel
+        )
+        self.engine = engine ?? DefaultEngine(path: configuration.path, configuration: config)
 
-        Task {
-            await self.engine.onConnection(use: connectionHandler)
-            await self.engine.onDisconnection(use: disonnectionHandler)
-            await self.engine.onPackets(use: packetsHandler)
-        }
+        setHandlers()
     }
 }
 
@@ -98,6 +144,14 @@ extension SocketIOServer {
 // MARK: - Helpers
 
 extension SocketIOServer {
+    private func setHandlers() {
+        Task {
+            await self.engine.onConnection(use: connectionHandler)
+            await self.engine.onDisconnection(use: disonnectionHandler)
+            await self.engine.onPackets(use: packetsHandler)
+        }
+    }
+
     func processPacket(for client: EngineIO.Client, packet: SocketIOPacket) async {
         if packet.socketIOType == .connect {
             await handleConnect(for: client, packet: packet)
@@ -131,7 +185,7 @@ extension SocketIOServer {
 
     private func handleEvent(for socket: Socket, packet: SocketIOPacket) {
         guard let eventDataPair = packet.eventDataPair else { return }
-        socket.messageHandlers[eventDataPair.event]?(eventDataPair.data)
+        socket.eventHandlers[eventDataPair.event]?(eventDataPair.data)
     }
 
     private func handleBinaryEvent(for socket: Socket, packet: SocketIOPacket) {

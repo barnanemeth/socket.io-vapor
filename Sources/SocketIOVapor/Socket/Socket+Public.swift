@@ -31,11 +31,15 @@ extension Socket {
     }
 
     public func emitWithAck(event: String, data: Any...) async -> [Any] {
+//        withCheckedContinuation { continuation in
+//            
+//        }
         // TODO
         []
     }
 
     public func disconnect() {
+        resetHandlers()
         Task { await client.disconnect() }
     }
 
@@ -59,17 +63,17 @@ extension Socket {
     }
 
     public func on(event: String, use handler: @escaping ([Any]) -> Void) {
-        messageHandlers[event] = handler
+        eventHandlers[event] = handler
     }
 
     public func on(event: String, use handler: @escaping (Socket, [Any]) -> Void) {
-        messageHandlers[event] = { [weak self] data in
+        eventHandlers[event] = { [weak self] data in
             guard let self else { return }
             handler(self, data)
         }
     }
 
     public func off(event: String) {
-        messageHandlers.removeValue(forKey: event)
+        eventHandlers.removeValue(forKey: event)
     }
 }

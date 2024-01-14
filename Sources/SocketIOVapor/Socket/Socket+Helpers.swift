@@ -40,7 +40,11 @@ extension Socket {
         SocketIOPacket(socketIOType: .event, namespace: namespace, payload: [event] + data)
     }
 
-    func broadcastEmit(event: String, data: Any...) {
-        
+    func resetHandlers() {
+        connectionHandler = nil
+        disconnectionHandler = nil
+        errorHandler = nil
+        eventHandlers.removeAll()
+        pendingPacketState = nil
     }
 }
