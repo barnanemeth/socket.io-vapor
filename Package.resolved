@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/barnanemeth/engine.io-vapor",
       "state" : {
-        "revision" : "bf085187471b48dcdfae4e2fe7f75e39f29a8f7c",
-        "version" : "0.0.5"
+        "revision" : "0875095f55a56130365fe06635d3866cdf9e43a9",
+        "version" : "0.0.7"
       }
     },
     {
