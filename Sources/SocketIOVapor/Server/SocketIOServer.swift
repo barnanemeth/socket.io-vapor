@@ -141,6 +141,14 @@ extension SocketIOServer {
     }
 }
 
+// MARK: - RouteCollection
+
+extension SocketIOServer: RouteCollection {
+    public func boot(routes: Vapor.RoutesBuilder) throws {
+        try engine.boot(routes: routes)
+    }
+}
+
 // MARK: - Helpers
 
 extension SocketIOServer {
