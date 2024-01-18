@@ -7,7 +7,7 @@
 
 import Foundation
 
-public protocol SocketSubset {
+public protocol SocketSubset: AnyObject {
     func getSockets() -> Set<Socket>
     func to(_ subset: String...) -> SocketSubset
     func except(_ subset: String...) -> SocketSubset

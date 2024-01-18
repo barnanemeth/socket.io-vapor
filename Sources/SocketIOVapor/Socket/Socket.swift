@@ -34,7 +34,11 @@ public final class Socket {
         self.namespace = namespace
         self.server = server
     }
-} 
+
+    deinit {
+        print("Socket deinitalized", id)
+    }
+}
 
 // MARK: - Hashable
 
