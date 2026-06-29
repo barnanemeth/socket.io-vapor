@@ -8,27 +8,42 @@
 import Foundation
 
 extension Socket: SocketSubset {
-    public func getSockets() -> Set<Socket> {
-        server?.getNamespace(for: namespace)?.getSockets().subtracting([self]) ?? []
+    public func getSockets() async -> Set<Socket> {
+        guard let namespaceMap = await server?.getNamespace(for: namespace) else { return [] }
+        return await namespaceMap.getSockets().subtracting([self])
     }
 
-    public func to(_ subset: String...) -> SocketSubset {
+    public func to(_ subset: String...) async -> SocketSubset {
+        guard let namespaceMap = await server?.getNamespace(for: namespace) else {
+            let reducableSubset = ReducableSocketSubset(namespace: namespace, sockets: [], roomMap: [:])
+            await reducableSubset.includeRooms(subset)
+            return reducableSubset
+        }
+
+        let snapshot = await namespaceMap.snapshot()
         let reducableSubset = ReducableSocketSubset(
             namespace: namespace,
-            sockets: getSockets(),
-            roomMap: server!.getNamespace(for: namespace)!.roomMap
+            sockets: snapshot.sockets.subtracting([self]),
+            roomMap: snapshot.roomMap
         )
-        reducableSubset.includedRooms.formUnion(subset)
+        await reducableSubset.includeRooms(subset)
         return reducableSubset
     }
 
-    public func except(_ subset: String...) -> SocketSubset {
+    public func except(_ subset: String...) async -> SocketSubset {
+        guard let namespaceMap = await server?.getNamespace(for: namespace) else {
+            let reducableSubset = ReducableSocketSubset(namespace: namespace, sockets: [], roomMap: [:])
+            await reducableSubset.excludeRooms(subset)
+            return reducableSubset
+        }
+
+        let snapshot = await namespaceMap.snapshot()
         let reducableSubset = ReducableSocketSubset(
             namespace: namespace,
-            sockets: getSockets(),
-            roomMap: server!.getNamespace(for: namespace)!.roomMap
+            sockets: snapshot.sockets.subtracting([self]),
+            roomMap: snapshot.roomMap
         )
-        reducableSubset.exludedRooms.formUnion(subset)
+        await reducableSubset.excludeRooms(subset)
         return reducableSubset
     }
 }

@@ -11,26 +11,24 @@ import Foundation
 
 extension SocketIOServer: InternalNamespace {
     var name: String { Constant.defaultNamespace }
-    
-    var sockets: Set<Socket> { defaultNamespaceMap.sockets }
 
-    var roomMap: [String : Set<String>] { defaultNamespaceMap.roomMap }
-
-    public func getSockets() -> Set<Socket> {
-        defaultNamespaceMap.sockets
+    func snapshot() async -> NamespaceSnapshot {
+        await defaultNamespaceMap.snapshot()
     }
 
-    public func onConnection(use handler: @escaping (Socket) -> Void) {
-        defaultNamespaceMap.socketObservation = handler
+    public func getSockets() async -> Set<Socket> {
+        await defaultNamespaceMap.getSockets()
     }
 
-    public func onConnection(use handler: @escaping (Namespace, Socket) -> Void) {
-        defaultNamespaceMap.socketObservation = { socket in
-            handler(self, socket)
-        }
+    public func onConnection(use handler: @Sendable @escaping (Socket) -> Void) async {
+        await defaultNamespaceMap.onConnection(use: handler)
     }
 
-    public func use(_ middleware: NamespaceMiddleware) {
-        defaultNamespaceMap.middlewares.append(middleware)
+    public func onConnection(use handler: @Sendable @escaping (Namespace, Socket) -> Void) async {
+        await defaultNamespaceMap.onConnection(use: handler)
+    }
+
+    public func use(_ middleware: NamespaceMiddleware) async {
+        await defaultNamespaceMap.use(middleware)
     }
 }

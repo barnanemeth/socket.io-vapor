@@ -7,15 +7,15 @@
 
 import Foundation
 
-final class ReducableSocketSubset {
+actor ReducableSocketSubset {
 
     // MARK: Internal properties
 
     let namespace: String
-    let sockets: Set<Socket>
-    let roomMap: [String: Set<String>]
-    var includedRooms = Set<String>()
-    var exludedRooms = Set<String>()
+    private let sockets: Set<Socket>
+    private let roomMap: [String: Set<String>]
+    private var includedRooms = Set<String>()
+    private var exludedRooms = Set<String>()
 
     // MARK: Init
 
@@ -45,13 +45,25 @@ extension ReducableSocketSubset: SocketSubset {
         return sockets
     }
 
-    public func to(_ subset: String...) -> SocketSubset {
+    public func to(_ subset: String...) async -> SocketSubset {
         includedRooms.formUnion(subset)
         return self
     }
     
-    public func except(_ subset: String...) -> SocketSubset {
+    public func except(_ subset: String...) async -> SocketSubset {
         exludedRooms.formUnion(subset)
         return self
+    }
+}
+
+// MARK: - Internal methods
+
+extension ReducableSocketSubset {
+    func includeRooms(_ rooms: [String]) {
+        includedRooms.formUnion(rooms)
+    }
+
+    func excludeRooms(_ rooms: [String]) {
+        exludedRooms.formUnion(rooms)
     }
 }
