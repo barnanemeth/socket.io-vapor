@@ -8,42 +8,27 @@
 import Foundation
 
 extension Socket: SocketSubset {
-    public func getSockets() async -> Set<Socket> {
-        guard let namespaceMap = await server?.getNamespace(for: namespace) else { return [] }
-        return await namespaceMap.getSockets().subtracting([self])
+    public func getSockets() -> Set<Socket> {
+        server?.getNamespace(for: namespace)?.getSockets().subtracting([self]) ?? []
     }
 
-    public func to(_ subset: String...) async -> SocketSubset {
-        guard let namespaceMap = await server?.getNamespace(for: namespace) else {
-            let reducableSubset = ReducableSocketSubset(namespace: namespace, sockets: [], roomMap: [:])
-            await reducableSubset.includeRooms(subset)
-            return reducableSubset
-        }
-
-        let snapshot = await namespaceMap.snapshot()
+    public func to(_ subset: String...) -> SocketSubset {
         let reducableSubset = ReducableSocketSubset(
             namespace: namespace,
-            sockets: snapshot.sockets.subtracting([self]),
-            roomMap: snapshot.roomMap
+            sockets: getSockets(),
+            roomMap: server!.getNamespace(for: namespace)!.roomMap
         )
-        await reducableSubset.includeRooms(subset)
+        reducableSubset.includedRooms.formUnion(subset)
         return reducableSubset
     }
 
-    public func except(_ subset: String...) async -> SocketSubset {
-        guard let namespaceMap = await server?.getNamespace(for: namespace) else {
-            let reducableSubset = ReducableSocketSubset(namespace: namespace, sockets: [], roomMap: [:])
-            await reducableSubset.excludeRooms(subset)
-            return reducableSubset
-        }
-
-        let snapshot = await namespaceMap.snapshot()
+    public func except(_ subset: String...) -> SocketSubset {
         let reducableSubset = ReducableSocketSubset(
             namespace: namespace,
-            sockets: snapshot.sockets.subtracting([self]),
-            roomMap: snapshot.roomMap
+            sockets: getSockets(),
+            roomMap: server!.getNamespace(for: namespace)!.roomMap
         )
-        await reducableSubset.excludeRooms(subset)
+        reducableSubset.exludedRooms.formUnion(subset)
         return reducableSubset
     }
 }

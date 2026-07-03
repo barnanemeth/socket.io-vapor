@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Broadcast: Sendable {
+public struct Broadcast {
 
     // MARK: Private properties
 
@@ -24,7 +24,6 @@ public struct Broadcast: Sendable {
 
 extension Broadcast {
     public func emit(event: String, data: Any...) {
-        let payload = SocketIOPayload(values: data)
-        Task { await socket.server?.broadcastEmit(from: socket, event: event, payload: payload) }
+        socket.server?.broadcastEmit(from: socket, event: event, data: data)
     }
 }

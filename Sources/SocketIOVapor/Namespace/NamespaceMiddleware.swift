@@ -8,6 +8,6 @@
 import Foundation
 import Vapor
 
-public protocol NamespaceMiddleware: Sendable {
+public protocol NamespaceMiddleware {
     func respond(to socket: Socket) async throws
 }

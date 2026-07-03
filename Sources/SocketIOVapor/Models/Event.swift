@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct Event: Equatable, RawRepresentable, ExpressibleByStringLiteral, Sendable {
+public struct Event: Equatable, RawRepresentable, ExpressibleByStringLiteral {
 
     public static let connection: Event = "connection"
     public static let newNamespace: Event = "new_namespace"

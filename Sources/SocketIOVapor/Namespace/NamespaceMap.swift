@@ -7,55 +7,51 @@
 
 import Foundation
 
-actor NamespaceMap {
+final class NamespaceMap {
 
     // MARK: Internal properties
 
     let name: String
-    private var sockets = Set<Socket>()
-    private var socketObservation: (@Sendable (Socket) -> Void)?
-    private var middlewares = [NamespaceMiddleware]()
-    private var roomMap = [String: Set<String>]()
+    var sockets = Set<Socket>() {
+        didSet { calculateSetDifference(oldValue: oldValue) }
+    }
+    var socketObservation: ((Socket) -> Void)?
+    var middlewares = [NamespaceMiddleware]()
+    var roomMap = [String: Set<String>]()
 
     // MARK: Init
 
     init(name: String, sockets: Set<Socket> = Set<Socket>()) {
         self.name = name
         self.sockets = sockets
-        for socket in sockets {
-            roomMap[socket.id] = Set(arrayLiteral: socket.id)
-        }
     }
 }
 
 // MARK: - InternalNamespace
 
 extension NamespaceMap: InternalNamespace {
-    func onConnection(use handler: @Sendable @escaping (Socket) -> Void) {
+    func onConnection(use handler: @escaping (Socket) -> Void) {
         socketObservation = handler
     }
 
-    func onConnection(use handler: @Sendable @escaping (Namespace, Socket) -> Void) {
-        socketObservation = { socket in
+    func onConnection(use handler: @escaping (Namespace, Socket) -> Void) {
+        socketObservation = { [weak self] socket in
+            guard let self else { return }
             handler(self, socket)
         }
     }
 
     func getSockets() -> Set<Socket> { sockets }
 
-    func snapshot() -> NamespaceSnapshot {
-        NamespaceSnapshot(sockets: sockets, roomMap: roomMap)
-    }
-
-    func to(_ subset: String...) async -> SocketSubset {
+    func to(_ subset: String...) -> SocketSubset {
         let reducableSubset = ReducableSocketSubset(namespace: name, sockets: sockets, roomMap: roomMap)
-        await reducableSubset.includeRooms(subset)
+        reducableSubset.includedRooms.formUnion(subset)
         return reducableSubset
     }
 
-    func except(_ subset: String...) async -> SocketSubset {
+    func except(_ subset: String...) -> SocketSubset {
         let reducableSubset = ReducableSocketSubset(namespace: name, sockets: sockets, roomMap: roomMap)
-        await reducableSubset.excludeRooms(subset)
+        reducableSubset.exludedRooms.formUnion(subset)
         return reducableSubset
     }
 
@@ -71,10 +67,8 @@ extension NamespaceMap {
         for middleware in middlewares {
             try await middleware.respond(to: socket)
         }
-
         sockets.insert(socket)
         roomMap[socket.id] = Set(arrayLiteral: socket.id)
-        socketObservation?(socket)
     }
 
     func removeSocket(_ socket: Socket) {
@@ -96,20 +90,25 @@ extension NamespaceMap {
         socketIDs.remove(socket.id)
         roomMap[room] = socketIDs
     }
-
-    func containsSocket(engineClientID: String) -> Bool {
-        sockets.contains(where: { $0.engineClientID == engineClientID })
-    }
 }
 
 // MARK: - Hashable & Equatable
 
 extension NamespaceMap: Hashable, Equatable {
-    nonisolated func hash(into hasher: inout Hasher) {
+    func hash(into hasher: inout Hasher) {
         hasher.combine(name)
     }
 
-    nonisolated static func == (lhs: NamespaceMap, rhs: NamespaceMap) -> Bool {
+    static func == (lhs: NamespaceMap, rhs: NamespaceMap) -> Bool {
         lhs.name == rhs.name
+    }
+}
+
+// MARK: - Helpers
+
+extension NamespaceMap {
+    private func calculateSetDifference(oldValue: Set<Socket>) {
+        let newSockets = sockets.subtracting(oldValue)
+        newSockets.forEach { socketObservation?($0) }
     }
 }

@@ -7,57 +7,50 @@
 
 import Foundation
 
-public protocol SocketSubset: AnyObject, Sendable {
-    func getSockets() async -> Set<Socket>
-    func to(_ subset: String...) async -> SocketSubset
-    func except(_ subset: String...) async -> SocketSubset
-    func emit(event: String, data: Any...) async
-    func disconnectSockets() async
+public protocol SocketSubset: AnyObject {
+    func getSockets() -> Set<Socket>
+    func to(_ subset: String...) -> SocketSubset
+    func except(_ subset: String...) -> SocketSubset
+    func emit(event: String, data: Any...)
+    func disconnectSockets()
 }
 
 extension SocketSubset {
-    public func emit(event: String, data: Any...) async {
-        let payload = SocketIOPayload(values: data)
-        for socket in await getSockets() {
-            socket.emit(event: event, payload: payload)
+    public func emit(event: String, data: Any...) {
+        for socket in getSockets() {
+            socket.emit(event: event, data: data)
         }
     }
 
-    public func disconnectSockets() async {
-        for socket in await getSockets() {
+    public func disconnectSockets() {
+        for socket in getSockets() {
             socket.disconnect()
         }
     }
 }
 
 public protocol Namespace: SocketSubset {
-    func onConnection(use handler: @Sendable @escaping (Socket) -> Void) async
-    func onConnection(use handler: @Sendable @escaping (Namespace, Socket) -> Void) async
-    func use(_ middleware: NamespaceMiddleware) async
+    func onConnection(use handler: @escaping (Socket) -> Void)
+    func onConnection(use handler: @escaping (Namespace, Socket) -> Void)
+    func use(_ middleware: NamespaceMiddleware)
 }
 
-protocol InternalNamespace: Namespace, Actor {
+protocol InternalNamespace: Namespace {
     var name: String { get }
-    func snapshot() async -> NamespaceSnapshot
-}
-
-struct NamespaceSnapshot: Sendable {
-    let sockets: Set<Socket>
-    let roomMap: [String: Set<String>]
+    var sockets: Set<Socket> { get }
+    var roomMap: [String: Set<String>] { get }
 }
 
 extension InternalNamespace {
-    public func to(_ subset: String...) async -> SocketSubset {
-        let snapshot = await snapshot()
-        let reducableSubset = ReducableSocketSubset(namespace: name, sockets: snapshot.sockets, roomMap: snapshot.roomMap)
-        await reducableSubset.includeRooms(subset)
+    public func to(_ subset: String...) -> SocketSubset {
+        let reducableSubset = ReducableSocketSubset(namespace: name, sockets: sockets, roomMap: roomMap)
+        reducableSubset.includedRooms.formUnion(subset)
         return reducableSubset
     }
 
-    public func except(_ subset: String...) async -> SocketSubset {
-        let snapshot = await snapshot()
-        let reducableSubset = ReducableSocketSubset(namespace: name, sockets: snapshot.sockets, roomMap: snapshot.roomMap)
-        await reducableSubset.excludeRooms(subset)
+    public func except(_ subset: String...) -> SocketSubset {
+        let reducableSubset = ReducableSocketSubset(namespace: name, sockets: sockets, roomMap: roomMap)
+        reducableSubset.exludedRooms.formUnion(subset)
         return reducableSubset
     }
 }
