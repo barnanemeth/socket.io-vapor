@@ -7,15 +7,13 @@
 
 import Foundation
 
-final class NamespaceMap {
+actor NamespaceMap: Sendable {
 
     // MARK: Internal properties
 
-    let name: String
-    var sockets = Set<Socket>() {
-        didSet { calculateSetDifference(oldValue: oldValue) }
-    }
-    var socketObservation: ((Socket) -> Void)?
+    nonisolated let name: String
+    var sockets = Set<Socket>()
+    var socketObservation: ((Socket) async -> Void)?
     var middlewares = [NamespaceMiddleware]()
     var roomMap = [String: Set<String>]()
 
@@ -29,29 +27,29 @@ final class NamespaceMap {
 
 // MARK: - InternalNamespace
 
-extension NamespaceMap: InternalNamespace {
-    func onConnection(use handler: @escaping (Socket) -> Void) {
+extension NamespaceMap: InternalNamespace {    
+    func onConnection(use handler: @escaping (Socket) async -> Void) {
         socketObservation = handler
     }
 
-    func onConnection(use handler: @escaping (Namespace, Socket) -> Void) {
+    func onConnection(use handler: @escaping (any Namespace, Socket) async -> Void) {
         socketObservation = { [weak self] socket in
             guard let self else { return }
-            handler(self, socket)
+            await handler(self, socket)
         }
     }
 
-    func getSockets() -> Set<Socket> { sockets }
+    func getSockets() async -> Set<Socket> { sockets }
 
-    func to(_ subset: String...) -> SocketSubset {
+    func to(_ subset: String...) async -> any SocketSubset {
         let reducableSubset = ReducableSocketSubset(namespace: name, sockets: sockets, roomMap: roomMap)
-        reducableSubset.includedRooms.formUnion(subset)
+        await reducableSubset.addToIncludedRooms(subset)
         return reducableSubset
     }
 
-    func except(_ subset: String...) -> SocketSubset {
+    func except(_ subset: String...) async -> any SocketSubset {
         let reducableSubset = ReducableSocketSubset(namespace: name, sockets: sockets, roomMap: roomMap)
-        reducableSubset.exludedRooms.formUnion(subset)
+        await reducableSubset.addToExcludedRooms(subset)
         return reducableSubset
     }
 
@@ -63,16 +61,28 @@ extension NamespaceMap: InternalNamespace {
 // MARK: - Internal methods
 
 extension NamespaceMap {
+    func setSocketObservation(_ socketObservation: ((Socket) async -> Void)?) {
+        self.socketObservation = socketObservation
+    }
+
+    func addMiddleware(_ middleware: NamespaceMiddleware) {
+        middlewares.append(middleware)
+    }
+
     func addSocket(_ socket: Socket) async throws {
         for middleware in middlewares {
             try await middleware.respond(to: socket)
         }
+        let oldSockets = sockets
         sockets.insert(socket)
+        await calculateSetDifference(oldValue: oldSockets)
         roomMap[socket.id] = Set(arrayLiteral: socket.id)
     }
 
-    func removeSocket(_ socket: Socket) {
+    func removeSocket(_ socket: Socket) async {
+        let oldSockets = sockets
         sockets.remove(socket)
+        await calculateSetDifference(oldValue: oldSockets)
         roomMap.removeValue(forKey: socket.id)
     }
 
@@ -90,12 +100,16 @@ extension NamespaceMap {
         socketIDs.remove(socket.id)
         roomMap[room] = socketIDs
     }
+
+    func isContainSocketWithClientID(_ engineID: String) async -> Bool {
+        await getSockets().contains(where: { $0.client.id == engineID })
+    }
 }
 
 // MARK: - Hashable & Equatable
 
 extension NamespaceMap: Hashable, Equatable {
-    func hash(into hasher: inout Hasher) {
+    nonisolated func hash(into hasher: inout Hasher) {
         hasher.combine(name)
     }
 
@@ -107,8 +121,10 @@ extension NamespaceMap: Hashable, Equatable {
 // MARK: - Helpers
 
 extension NamespaceMap {
-    private func calculateSetDifference(oldValue: Set<Socket>) {
+    private func calculateSetDifference(oldValue: Set<Socket>) async {
         let newSockets = sockets.subtracting(oldValue)
-        newSockets.forEach { socketObservation?($0) }
+        for socket in newSockets {
+            await socketObservation?(socket)
+        }
     }
 }

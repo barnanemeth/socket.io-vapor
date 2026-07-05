@@ -9,11 +9,11 @@ import Foundation
 import Vapor
 import EngineIO
 
-public class SocketIOServer {
+actor SocketIOServer: Sendable {
 
     // MARK: Inner types
 
-    public struct Configuration {
+    public struct Configuration: Sendable {
         public static let `default` = Configuration()
 
         public var path: PathComponent
@@ -23,7 +23,7 @@ public class SocketIOServer {
         public var addTrailingSlash: Bool
         public var allowEIO3: Bool
         public var allowUpgrades = true
-        public var allowRequest: ((Request) throws -> Void)?
+        public var allowRequest: (@Sendable (Request) throws -> Void)?
         public var cookie: CookieOptions?
         public var logLevel: Logger.Level
 
@@ -34,7 +34,7 @@ public class SocketIOServer {
                     addTrailingSlash: Bool = false,
                     allowEIO3: Bool = false,
                     allowUpgrades: Bool = true,
-                    allowRequest: ((Request) throws -> Void)? = nil,
+                    allowRequest: (@Sendable (Request) throws -> Void)? = nil,
                     cookie: CookieOptions? = nil,
                     logLevel: Logger.Level = .error) {
             self.path = path
@@ -59,19 +59,22 @@ public class SocketIOServer {
 
     // MARK: Public properties
 
-    public let engine: Engine
+    nonisolated public let engine: Engine
 
     // MARK: Internal properties
 
     lazy var namespaceMaps: Set<NamespaceMap> = { [defaultNamespaceMap] }()
     let defaultNamespaceMap = NamespaceMap(name: Constant.defaultNamespace)
     var allSockets: Set<Socket> {
-        namespaceMaps.reduce(into: Set<Socket>(), { $0.formUnion($1.sockets) })
+        get async {
+            var sockets = Set<Socket>()
+            for namespaceMap in namespaceMaps {
+                let namespaceMapSockets = await namespaceMap.getSockets()
+                sockets.formUnion(namespaceMapSockets)
+            }
+            return sockets
+        }
     }
-
-    // MARK: Private properites
-
-    private let pendingPacketQueue = DispatchQueue(label: "io.socket.pendingpacketqueue")
 
     // MARK: Init
 
@@ -96,20 +99,21 @@ public class SocketIOServer {
 // MARK: - Handlers
 
 extension SocketIOServer {
-    @Sendable private func connectionHandler(client: EngineIO.Client) {
-    }
+    private func connectionHandler(client: EngineIO.Client) { }
 
-    @Sendable private func disonnectionHandler(client: EngineIO.Client, reason: EngineIO.DisconnectReason) {
-        getSockets(for: client).forEach { socket in
-            guard let namespaceMap = namespaceMaps.first(where: { $0.sockets.contains(where: { $0.client.id == client.id }) }) else {
-                return
+    private func disonnectionHandler(client: EngineIO.Client, reason: EngineIO.DisconnectReason) async {
+        for socket in await getSockets(for: client) {
+            for namespaceMap in namespaceMaps {
+                if await namespaceMap.isContainSocketWithClientID(client.id) {
+                    await namespaceMap.removeSocket(socket)
+                    await socket.disconnectionHandler?(reason.disconnectReason)
+                    return
+                }
             }
-            namespaceMap.removeSocket(socket)
-            socket.disconnectionHandler?(reason.disconnectReason)
         }
     }
 
-    @Sendable private func packetsHandler(client: EngineIO.Client, packets: [any Packet]) async {
+    private func packetsHandler(client: EngineIO.Client, packets: [any Packet]) async {
         do {
             for packet in packets {
                 switch packet {
@@ -144,7 +148,7 @@ extension SocketIOServer {
 // MARK: - RouteCollection
 
 extension SocketIOServer: RouteCollection {
-    public func boot(routes: Vapor.RoutesBuilder) throws {
+    nonisolated public func boot(routes: Vapor.RoutesBuilder) throws {
         try engine.boot(routes: routes)
     }
 }
@@ -152,23 +156,31 @@ extension SocketIOServer: RouteCollection {
 // MARK: - Helpers
 
 extension SocketIOServer {
-    private func setHandlers() {
+    nonisolated private func setHandlers() {
         Task {
-            await self.engine.onConnection(use: connectionHandler)
-            await self.engine.onDisconnection(use: disonnectionHandler)
-            await self.engine.onPackets(use: packetsHandler)
+            await self.engine.onConnection { [weak self] client in
+                await self?.connectionHandler(client: client)
+            }
+            await self.engine.onDisconnection { [weak self] client, reason in
+                await self?.disonnectionHandler(client: client, reason: reason)
+            }
+            await self.engine.onPackets { [weak self] client, packets in
+                await self?.packetsHandler(client: client, packets: packets)
+            }
         }
     }
 
-    func processPacket(for client: EngineIO.Client, packet: SocketIOPacket) async {
+    private func processPacket(for client: EngineIO.Client, packet: SocketIOPacket) async {
         if packet.socketIOType == .connect {
             await handleConnect(for: client, packet: packet)
         } else {
-            guard let socket = getSocket(for: client, and: packet.namespace) else { return await client.disconnect() }
+            guard let socket = await getSocket(for: client, and: packet.namespace) else {
+                return await client.disconnect()
+            }
             switch packet.socketIOType {
-            case .disconnect: handleDisconnect(for: socket, packet: packet)
-            case .event: handleEvent(for: socket, packet: packet)
-            case .binaryEvent: handleBinaryEvent(for: socket, packet: packet)
+            case .disconnect: await handleDisconnect(for: socket, packet: packet)
+            case .event: await handleEvent(for: socket, packet: packet)
+            case .binaryEvent: await handleBinaryEvent(for: socket, packet: packet)
             default: return
             }
         }
@@ -191,46 +203,42 @@ extension SocketIOServer {
         }
     }
 
-    private func handleEvent(for socket: Socket, packet: SocketIOPacket) {
+    private func handleEvent(for socket: Socket, packet: SocketIOPacket) async {
         guard let eventDataPair = packet.eventDataPair else { return }
-        socket.eventHandlers[eventDataPair.event]?(eventDataPair.data)
+        await socket.eventHandlers[eventDataPair.event]?(eventDataPair.data)
     }
 
-    private func handleBinaryEvent(for socket: Socket, packet: SocketIOPacket) {
-        pendingPacketQueue.async { [weak self] in
-            if let pendingPacketState = socket.pendingPacketState {
-                pendingPacketState.setEventPacket(packet)
-                self?.sendPendingPacketIfPossible(for: socket)
-            } else {
-                socket.pendingPacketState = PendingPacketState(eventPacket: packet)
-            }
+    private func handleBinaryEvent(for socket: Socket, packet: SocketIOPacket) async {
+        if let pendingPacketState = await socket.pendingPacketState {
+            pendingPacketState.setEventPacket(packet)
+            await sendPendingPacketIfPossible(for: socket)
+        } else {
+            await socket.setPendingPacketState(PendingPacketState(eventPacket: packet))
         }
     }
 
     private func handleBinaryPacket(for client: EngineIO.Client, packet: BinaryPacket) async {
-        pendingPacketQueue.async { [weak self] in
-            let possibleSockets = self?.getSockets(for: client) ?? []
-            possibleSockets.forEach { socket in
-                if let pendingPacketState = socket.pendingPacketState {
-                    pendingPacketState.appendBinaryPacket(packet.rawData())
-                    self?.sendPendingPacketIfPossible(for: socket)
-                } else {
-                    socket.pendingPacketState = PendingPacketState(byteBuffer: packet.rawData())
-                }
+        let possibleSockets = await getSockets(for: client)
+        for socket in possibleSockets {
+            if let pendingPacketState = await socket.getPendindPacketState() {
+                pendingPacketState.appendBinaryPacket(packet.rawData())
+                await sendPendingPacketIfPossible(for: socket)
+            } else {
+                await socket.setPendingPacketState(PendingPacketState(byteBuffer: packet.rawData()))
             }
         }
     }
 
-    private func handleDisconnect(for socket: Socket, packet: SocketIOPacket) {
-        disconnect(socket: socket, from: packet.namespace)
+    private func handleDisconnect(for socket: Socket, packet: SocketIOPacket) async {
+        await disconnect(socket: socket, from: packet.namespace)
     }
 
-    private func getSocket(for client: EngineIO.Client, and namespace: String) -> Socket? {
-        allSockets.first(where: { $0.client.id == client.id && $0.namespace == namespace })
+    private func getSocket(for client: EngineIO.Client, and namespace: String) async -> Socket? {
+        await allSockets.first(where: { $0.client.id == client.id && $0.namespace == namespace })
     }
 
-    private func getSockets(for client: EngineIO.Client) -> Set<Socket> {
-        allSockets.filter { $0.client.id == client.id }
+    private func getSockets(for client: EngineIO.Client) async -> Set<Socket> {
+        await allSockets.filter { $0.client.id == client.id }
     }
 
     private func connect(socket: Socket, to namespace: String) async throws {
@@ -238,9 +246,9 @@ extension SocketIOServer {
         try await namespaceMap.addSocket(socket)
     }
 
-    private func disconnect(socket: Socket, from namespace: String) {
-        getNamespace(for: namespace)?.removeSocket(socket)
-        socket.disconnectionHandler?(.forcefully)
+    private func disconnect(socket: Socket, from namespace: String) async {
+        await getNamespace(for: namespace)?.removeSocket(socket)
+        await socket.disconnectionHandler?(.forcefully)
     }
 
     func getNamespace(for name: String) -> NamespaceMap? {
@@ -248,29 +256,31 @@ extension SocketIOServer {
         return namespaceMap
     }
 
-    func addSocket(_ socket: Socket, to room: String) {
-        getNamespace(for: socket.namespace)?.addSocket(socket, to: room)
+    func addSocket(_ socket: Socket, to room: String) async {
+        await getNamespace(for: socket.namespace)?.addSocket(socket, to: room)
     }
 
-    func removeSocket(_ socket: Socket, from room: String) {
-        getNamespace(for: socket.namespace)?.removeSocket(socket, from: room)
+    func removeSocket(_ socket: Socket, from room: String) async {
+        await getNamespace(for: socket.namespace)?.removeSocket(socket, from: room)
     }
 
-    private func sendPendingPacketIfPossible(for socket: Socket) {
-        guard let finalPacket = socket.pendingPacketState?.getFinalPacket() else { return }
-        handleEvent(for: socket, packet: finalPacket)
-        flushPendingPacketStates(for: socket.client)
+    private func sendPendingPacketIfPossible(for socket: Socket) async {
+        guard let finalPacket = await socket.pendingPacketState?.getFinalPacket() else { return }
+        await handleEvent(for: socket, packet: finalPacket)
+        await flushPendingPacketStates(for: socket.client)
     }
 
-    private func flushPendingPacketStates(for client: EngineIO.Client) {
-        getSockets(for: client).forEach { $0.resetPendingPacketState() }
+    private func flushPendingPacketStates(for client: EngineIO.Client) async {
+        for socket in await getSockets(for: client) {
+            await socket.resetPendingPacketState()
+        }
     }
 
-    func broadcastEmit(from socket: Socket, event: String, data: Any...) {
-        var sockets = getNamespace(for: socket.namespace)?.sockets ?? []
+    func broadcastEmit(from socket: Socket, event: String, data: any Sendable...) async {
+        var sockets = await getNamespace(for: socket.namespace)?.sockets ?? []
         sockets.remove(socket)
         for socket in sockets {
-            socket.emit(event: event, data: data)
+            await socket.emit(event: event, data: data)
         }
     }
 }

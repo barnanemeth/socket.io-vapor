@@ -23,7 +23,7 @@ public struct Broadcast {
 // MARK: - Public methods
 
 extension Broadcast {
-    public func emit(event: String, data: Any...) {
-        socket.server?.broadcastEmit(from: socket, event: event, data: data)
+    public func emit(event: String, data: any Sendable...) async {
+        await socket.server?.broadcastEmit(from: socket, event: event, data: data)
     }
 }

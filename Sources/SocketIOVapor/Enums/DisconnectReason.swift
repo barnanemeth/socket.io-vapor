@@ -8,7 +8,7 @@
 import Foundation
 import EngineIO
 
-public enum DisconnectReason {
+public enum DisconnectReason: Sendable {
     case forcefully
     case pingTimeout
     case transportClose

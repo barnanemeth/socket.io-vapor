@@ -35,7 +35,7 @@ final class PendingPacketState: @unchecked Sendable {
     }
 
     func getFinalPacket() -> SocketIOPacket? {
-        guard var eventPacket, var array = eventPacket.payload as? [Any] else { return nil }
+        guard var eventPacket, var array = eventPacket.payload as? [any Sendable] else { return nil }
         let placeholderIndices = array.enumerated().compactMap { index, item -> Int? in
             guard isBinaryAttachmentPlaceholder(item) else { return nil }
             return index
@@ -44,14 +44,14 @@ final class PendingPacketState: @unchecked Sendable {
         zip(binaryPackets, placeholderIndices).forEach { binaryPacket, index in
             array[index] = binaryPacket
         }
-        eventPacket.payload = array as Any
+        eventPacket.payload = array as any Sendable
         return eventPacket
     }
 
     // MARK: Helpers
 
-    private func isBinaryAttachmentPlaceholder(_ object: Any) -> Bool {
-        guard let dictionary = object as? [String: Any] else { return false }
+    private func isBinaryAttachmentPlaceholder(_ object: any Sendable) -> Bool {
+        guard let dictionary = object as? [String: any Sendable] else { return false }
         return dictionary[BinaryAttachmentPlaceholderKeys.placeholder] is Bool &&
             dictionary[BinaryAttachmentPlaceholderKeys.number] is Int
     }

@@ -10,21 +10,30 @@ import Vapor
 import EngineIO
 
 extension Socket {
+    func getPendindPacketState() -> PendingPacketState? {
+        pendingPacketState
+    }
+
+    func setPendingPacketState(_ state: PendingPacketState) {
+        pendingPacketState = state
+    }
+
     func resetPendingPacketState() {
         pendingPacketState = nil
     }
 
-    func getBinaryAttachments(for data: Any...) -> [ByteBuffer] {
+    func getBinaryAttachments(for data: any Sendable...) -> [ByteBuffer] {
         data.compactMap { $0 as? ByteBuffer }
     }
 
-    func getPacketsForBinaryEvent(event: String, binaryAttachments: [ByteBuffer], data: Any...) -> [any Packet] {
-        let transformedData = data.reduce(into: (binaryAttachmentCount: 0, data: [Any]()), { acc, dataItem in
+    func getPacketsForBinaryEvent(event: String, binaryAttachments: [ByteBuffer], data: any Sendable...) -> [any Packet] {
+        let transformedData = data.reduce(into: (binaryAttachmentCount: 0, data: [any Sendable]()), { acc, dataItem in
             guard dataItem is ByteBuffer else { return acc.data.append(dataItem) }
-            acc.data.append([
+            let data: [String: any Sendable] = [
                 BinaryAttachmentPlaceholderKeys.placeholder: true,
                 BinaryAttachmentPlaceholderKeys.number: acc.binaryAttachmentCount
-            ])
+            ]
+            acc.data.append(data)
             acc.binaryAttachmentCount += 1
         }).data
         let packet = SocketIOPacket(
@@ -36,7 +45,7 @@ extension Socket {
         return [packet] + binaryAttachments.map { BinaryPacket(byteBuffer: $0) }
     }
 
-    func getPacketForSimpleEvent(event: String, data: Any...) -> any Packet {
+    func getPacketForSimpleEvent(event: String, data: any Sendable...) -> any Packet {
         SocketIOPacket(socketIOType: .event, namespace: namespace, payload: [event] + data)
     }
 

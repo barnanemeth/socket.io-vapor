@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ReducableSocketSubset {
+actor ReducableSocketSubset {
 
     // MARK: Internal properties
 
@@ -53,5 +53,17 @@ extension ReducableSocketSubset: SocketSubset {
     public func except(_ subset: String...) -> SocketSubset {
         exludedRooms.formUnion(subset)
         return self
+    }
+}
+
+// MARK: - Internal methods
+
+extension ReducableSocketSubset {
+    func addToIncludedRooms(_ rooms: [String]) {
+        includedRooms.formUnion(rooms)
+    }
+
+    func addToExcludedRooms(_ rooms: [String]) {
+        exludedRooms.formUnion(rooms)
     }
 }

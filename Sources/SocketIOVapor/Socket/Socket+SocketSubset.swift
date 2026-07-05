@@ -7,28 +7,28 @@
 
 import Foundation
 
-extension Socket: SocketSubset {
-    public func getSockets() -> Set<Socket> {
-        server?.getNamespace(for: namespace)?.getSockets().subtracting([self]) ?? []
+extension Socket: SocketSubset {    
+    public func getSockets()  async -> Set<Socket> {
+        await server?.getNamespace(for: namespace)?.getSockets().subtracting([self]) ?? []
     }
 
-    public func to(_ subset: String...) -> SocketSubset {
-        let reducableSubset = ReducableSocketSubset(
+    public func to(_ subset: String...) async -> any SocketSubset {
+        let reducableSubset = await ReducableSocketSubset(
             namespace: namespace,
             sockets: getSockets(),
             roomMap: server!.getNamespace(for: namespace)!.roomMap
         )
-        reducableSubset.includedRooms.formUnion(subset)
+        await reducableSubset.addToIncludedRooms(subset)
         return reducableSubset
     }
 
-    public func except(_ subset: String...) -> SocketSubset {
-        let reducableSubset = ReducableSocketSubset(
+    public func except(_ subset: String...) async -> any SocketSubset {
+        let reducableSubset = await ReducableSocketSubset(
             namespace: namespace,
             sockets: getSockets(),
             roomMap: server!.getNamespace(for: namespace)!.roomMap
         )
-        reducableSubset.exludedRooms.formUnion(subset)
+        await reducableSubset.addToExcludedRooms(subset)
         return reducableSubset
     }
 }

@@ -8,22 +8,22 @@
 import Foundation
 import EngineIO
 
-public final class Socket {
+public actor Socket: Sendable {
 
     // MARK: Public properties
 
-    public let id = UUID().uuidString
-    public let client: Client
+    nonisolated public let id = UUID().uuidString
+    nonisolated public let client: Client
     public lazy var broadcast = { Broadcast(socket: self) }()
-    public var userInfo: [String: Any] = [:]
+    public var userInfo: [String: any Sendable] = [:]
 
     // MARK: Internal properties
 
-    let namespace: String
+    nonisolated let namespace: String
     var connectionHandler: (() -> Void)?
-    var disconnectionHandler: ((DisconnectReason) -> Void)?
-    var errorHandler: ((Error) -> Void)?
-    var eventHandlers = [String: ([Any]) -> Void]()
+    var disconnectionHandler: (@Sendable (DisconnectReason) -> Void)?
+    var errorHandler: (@Sendable (Error) -> Void)?
+    var eventHandlers = [String: @Sendable ([any Sendable]) -> Void]()
     var pendingPacketState: PendingPacketState?
     weak var server: SocketIOServer?
 
@@ -39,7 +39,7 @@ public final class Socket {
 // MARK: - Hashable
 
 extension Socket: Hashable, Equatable {
-    public func hash(into hasher: inout Hasher) {
+    nonisolated public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
 
@@ -51,5 +51,5 @@ extension Socket: Hashable, Equatable {
 // MARK: - CustomStringConvertible
 
 extension Socket: CustomStringConvertible {
-    public var description: String { id }
+    nonisolated public var description: String { id }
 }

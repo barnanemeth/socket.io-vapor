@@ -19,7 +19,7 @@ struct SocketIOHandshake {
 
     let id: String
 
-    var dictionary: [String: Any] {
+    var dictionary: [String: any Sendable] {
         [CodingKeys.id.rawValue: id]
     }
 }

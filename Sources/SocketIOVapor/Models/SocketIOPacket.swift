@@ -13,7 +13,7 @@ struct SocketIOPacket: TextPacket, @unchecked Sendable {
 
     // MARK: Typealiases
 
-    typealias EventDataPair = (event: String, data: [Any])
+    typealias EventDataPair = (event: String, data: [any Sendable])
 
     // MARK: Constants
 
@@ -36,8 +36,8 @@ struct SocketIOPacket: TextPacket, @unchecked Sendable {
     var payload: Any?
 
     var eventDataPair: EventDataPair? {
-        guard let array = payload as? NSArray, let event = array.firstObject as? String  else { return nil }
-        return (event, array.dropFirst().map { $0 as Any })
+        guard let array = payload as? [any Sendable], let event = array.first as? String  else { return nil }
+        return (event, array.dropFirst().map { $0 })
     }
 
     // MARK: Init
@@ -45,7 +45,7 @@ struct SocketIOPacket: TextPacket, @unchecked Sendable {
     init(from text: String) throws {
         var text = text
 
-        // Core type
+        // Engine type
         self.type = .message
 
         // Payload
@@ -53,7 +53,8 @@ struct SocketIOPacket: TextPacket, @unchecked Sendable {
         if let match = payloadRegex.matches(in: text, range: NSRange(location: .zero, length: text.count)).first {
             let substring = NSString(string: text).substring(with: match.range)
             let jsonData = substring.data(using: .utf8)!
-            self.payload = try JSONSerialization.jsonObject(with: jsonData)
+            let serializedObject = try JSONSerialization.jsonObject(with: jsonData)
+            self.payload = serializedObject
 
             let start = String.Index(utf16Offset: match.range.location, in: text)
             let end = String.Index(utf16Offset: match.range.location + match.range.length, in: text)
@@ -106,7 +107,7 @@ struct SocketIOPacket: TextPacket, @unchecked Sendable {
     init(socketIOType: SocketIOPacketType,
          namespace: String,
          numberOfBinaryAttachments: Int = 0,
-         payload: Any? = nil,
+         payload: (any Sendable)? = nil,
          ackID: Int? = nil
     ) {
         self.type = .message
