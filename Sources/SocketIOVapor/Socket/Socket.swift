@@ -21,9 +21,9 @@ public actor Socket: Sendable {
 
     nonisolated let namespace: String
     var connectionHandler: (() -> Void)?
-    var disconnectionHandler: (@Sendable (DisconnectReason) -> Void)?
-    var errorHandler: (@Sendable (Error) -> Void)?
-    var eventHandlers = [String: @Sendable ([any Sendable]) -> Void]()
+    var disconnectionHandler: (@Sendable (DisconnectReason) async -> Void)?
+    var errorHandler: (@Sendable (Error) async -> Void)?
+    var eventHandlers = [String: @Sendable ([any Sendable]) async -> Void]()
     var pendingPacketState: PendingPacketState?
     weak var server: SocketIOServer?
 

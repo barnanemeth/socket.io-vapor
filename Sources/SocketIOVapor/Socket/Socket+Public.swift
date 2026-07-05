@@ -20,14 +20,14 @@ extension Socket {
         await server?.removeSocket(self, from: room)
     }
 
-    public func emit(event: String, data: any Sendable...) {
+    public func emit(event: String, data: any Sendable...) async {
         let binaryAttachments = getBinaryAttachments(for: data)
         if binaryAttachments.count > .zero {
             let packets = getPacketsForBinaryEvent(event: event, binaryAttachments: binaryAttachments, data: data)
-            Task { [client] in await client.sendPackets(packets) }
+            await client.sendPackets(packets)
         } else {
             let packet = getPacketForSimpleEvent(event: event, data: data)
-            Task { [client] in await client.sendPacket(packet) }
+            await client.sendPacket(packet)
         }
     }
 
@@ -40,29 +40,29 @@ extension Socket {
         connectionHandler = handler
     }
 
-    public func onDisconnection(use handler: @Sendable @escaping (DisconnectReason) -> Void) {
+    public func onDisconnection(use handler: @Sendable @escaping (DisconnectReason) async -> Void) {
         disconnectionHandler = handler
     }
 
-    public func onDisconnection(use handler: @Sendable @escaping (Socket, DisconnectReason) -> Void) {
+    public func onDisconnection(use handler: @Sendable @escaping (Socket, DisconnectReason) async -> Void) {
         disconnectionHandler = { [weak self] reason in
             guard let self else { return }
-            handler(self, reason)
+            await handler(self, reason)
         }
     }
 
-    public func onError(use handler: @Sendable @escaping (Error) -> Void) {
+    public func onError(use handler: @Sendable @escaping (Error) async -> Void) {
         errorHandler = handler
     }
 
-    public func on(event: String, use handler: @Sendable @escaping ([any Sendable]) -> Void) {
+    public func on(event: String, use handler: @Sendable @escaping ([any Sendable]) async -> Void) {
         eventHandlers[event] = handler
     }
 
-    public func on(event: String, use handler: @Sendable @escaping (Socket, [any Sendable]) -> Void) {
+    public func on(event: String, use handler: @Sendable @escaping (Socket, [any Sendable]) async -> Void) {
         eventHandlers[event] = { [weak self] data in
             guard let self else { return }
-            handler(self, data)
+            await handler(self, data)
         }
     }
 
