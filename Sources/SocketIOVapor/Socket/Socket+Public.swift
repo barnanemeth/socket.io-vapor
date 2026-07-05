@@ -31,13 +31,9 @@ extension Socket {
         }
     }
 
-//    public func emitWithAck(event: String, data: Any...) async -> [Any] {
-//        []
-//    }
-
-    public func disconnect() {
+    public func disconnect() async {
         resetHandlers()
-        Task { [client] in await client.disconnect() }
+        await client.disconnect()
     }
 
     public func onConnection(use handler: @escaping () -> Void) {
@@ -59,11 +55,11 @@ extension Socket {
         errorHandler = handler
     }
 
-    public func on(event: String, use handler: @Sendable @escaping ([Any]) -> Void) {
+    public func on(event: String, use handler: @Sendable @escaping ([any Sendable]) -> Void) {
         eventHandlers[event] = handler
     }
 
-    public func on(event: String, use handler: @Sendable @escaping (Socket, [Any]) -> Void) {
+    public func on(event: String, use handler: @Sendable @escaping (Socket, [any Sendable]) -> Void) {
         eventHandlers[event] = { [weak self] data in
             guard let self else { return }
             handler(self, data)
@@ -72,5 +68,13 @@ extension Socket {
 
     public func off(event: String) {
         eventHandlers.removeValue(forKey: event)
+    }
+
+    public func getUserInfo() -> [String: any Sendable] {
+        userInfo
+    }
+
+    public func setUserInfo(_ userInfo: [String: any Sendable]) {
+        self.userInfo = userInfo
     }
 }
