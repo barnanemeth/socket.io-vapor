@@ -9,7 +9,7 @@ import Foundation
 import Vapor
 import EngineIO
 
-actor SocketIOServer: Sendable {
+public actor SocketIOServer: Sendable {
 
     // MARK: Inner types
 
