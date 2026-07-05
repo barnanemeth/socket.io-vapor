@@ -77,4 +77,12 @@ extension Socket {
     public func setUserInfo(_ userInfo: [String: any Sendable]) {
         self.userInfo = userInfo
     }
+
+    public func getUserInfoValue(for key: String) -> (any Sendable)? {
+        userInfo[key]
+    }
+
+    public func setUserInfoValue(_ value: any Sendable, for key: String) {
+        userInfo[key] = value
+    }
 }
