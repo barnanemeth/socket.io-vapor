@@ -13,7 +13,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.121.4"),
-        .package(url: "https://github.com/barnanemeth/engine.io-vapor", from: "1.1.2")
+        .package(url: "https://github.com/barnanemeth/engine.io-vapor", from: "1.1.3")
     ],
     targets: [
         .target(

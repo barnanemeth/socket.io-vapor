@@ -1,5 +1,5 @@
 {
-  "originHash" : "c532f1cb007a4586e1488e0b3414499595bcea4596c38ad0ee34a6183e15b0e5",
+  "originHash" : "a597c3e7db09ddb505803b30adda4b7ee31a8be88099c03577abe158b00fd27a",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/barnanemeth/engine.io-vapor",
       "state" : {
-        "revision" : "cc823ca2b08876a48c31773f1e8d2764563d76ad",
-        "version" : "1.1.2"
+        "revision" : "458452befba9a9deca4bf7bf37ded3d00c18f912",
+        "version" : "1.1.3"
       }
     },
     {
